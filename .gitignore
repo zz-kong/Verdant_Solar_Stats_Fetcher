@@ -1,0 +1,37 @@
+# Verdant Solar
+# -------------
+# Solar statistics fetcher & visualiser for booking.verdantsolar.my
+#
+# Usage:
+#   python verdant_solar_fetch.py          # fetch data (no auth required)
+#   python verdant_solar_viz.py            # generate charts
+#
+# Configuration:
+#   verdant_config.yaml  — station ID, dates, paths, chart style
+#   .env                 — secrets / API keys (optional)
+#   CLI arguments        — --station, --start, --end etc. override both
+#
+# Requirements:
+#   pip install requests matplotlib pandas python-dotenv pyyaml
+
+# ── Files to exclude from Git ──────────────────────
+**/__pycache__
+**/.pyc
+.env
+.venv/
+venv/
+env/
+*.pyo
+*.egg-info/
+dist/
+build/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+# Secrets — never commit
+**/*.secret
+**/credentials.json
+!verdant_config.yaml
+!.env.example

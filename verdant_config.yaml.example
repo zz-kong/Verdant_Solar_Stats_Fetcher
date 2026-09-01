@@ -1,0 +1,30 @@
+# ── Station ─────────────────────────────────────────────
+station_id: "60BHnnnnnnXnnn"   # your inverter Serial Number
+id: "11111111111"                # Your journey id, need login to see
+
+# ── Date range ──────────────────────────────────────────
+start_date: "2026-09-01"             # default start (YYYY-MM-DD)
+end_date: "2026-09-01"               # default end   (YYYY-MM-DD)
+
+# ── API ─────────────────────────────────────────────────
+base_url: "https://booking.verdantsolar.my"
+
+# ── Output ──────────────────────────────────────────────
+output_dir: "verdant_output"         # directory for raw JSON + charts
+
+# ── Visualisation ───────────────────────────────────────
+# If true, the visualiser reads stationData (intraday 5-min points) and
+# draws line charts of PV/Load/Grid/Battery over the day.
+# If false, it falls back to daily-bar charts (one bar per day).
+use_intraday: true
+
+# Chart appearance
+chart_dpi: 150
+chart_width: 14
+chart_height: 5.5
+palette:
+  pv: "#FFB800"
+  load: "#4A90D9"
+  grid: "#FF6B35"
+  battery: "#50C878"
+  net: "#9B59B6"
