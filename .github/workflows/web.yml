@@ -1,0 +1,55 @@
+name: Fetch & publish Verdant Solar dashboard
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  push:
+    paths:
+      - "web/index.html"
+      - "publish_static.py"
+      - "verdant_solar_fetch_simple.py"
+      - ".github/workflows/verdant-pages.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Fetch last 14 days of station-day data
+        env:
+          STATION: ${{ vars.VERNANT_STATION_ID }}
+        run: |
+          START=$(date -u -d "13 days ago" +%F)
+          END=$(date -u +%F)
+          python verdant_solar_fetch_simple.py --station "$STATION" \
+              --start "$START" --end "$END"
+      - name: Build static bundle
+        run: python publish_static.py --out _site --max 1
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
