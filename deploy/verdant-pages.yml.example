@@ -1,23 +1,25 @@
-# ── Verdant Solar → GitHub Pages ───────────────────────────────────────────
+# ── Verdant Solar → GitHub Pages (no fetch — publishes committed JSON) ────
 # Copy this file to .github/workflows/verdant-pages.yml, then:
 #   1. Settings → Pages → Build and deployment → Source: **GitHub Actions**
-#   2. Settings → Secrets and variables → Actions → New repository variable:
-#        VERNANT_STATION_ID = your inverter serial number (60BHnnnnnnXnnn)
 #
-# It re-fetches the last 14 days every 15 minutes (GitHub's schedulers can
-# lag a few minutes; this is a pull-on-deploy snapshot, while the deployed
-# page itself still auto-refreshes live from the API every 5 min).
-name: Fetch & publish Verdant Solar dashboard
+# This workflow does NOT call the Verdant API. It just bundles whatever
+# verdant_raw_*.json files are committed to the repo (via publish_static.py)
+# and deploys them. The deployed page still fetches live data from the API
+# in the visitor's browser every 5 minutes — this only controls the bundled
+# snapshot history.
+#
+# NOTE: verdant_output/ is gitignored, so commit snapshots with
+#   git add -f verdant_output/verdant_raw_*.json
+# (or store them elsewhere and adjust the paths below).
+name: Publish Verdant Solar dashboard
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
   push:
     paths:
+      - "verdant_output/**/*.json"
       - "web/index.html"
       - "publish_static.py"
-      - "verdant_solar_fetch_simple.py"
       - ".github/workflows/verdant-pages.yml"
 
 permissions:
@@ -37,17 +39,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests
-      - name: Fetch last 14 days of station-day data
-        env:
-          STATION: ${{ vars.VERNANT_STATION_ID }}
-        run: |
-          START=$(date -u -d "13 days ago" +%F)
-          END=$(date -u +%F)
-          python verdant_solar_fetch_simple.py --station "$STATION" \
-              --start "$START" --end "$END"
-      - name: Build static bundle
-        run: python publish_static.py --out _site --max 1
+      # publish_static.py is stdlib-only — no pip install needed.
+      - name: Build static bundle from committed snapshots
+        run: python publish_static.py --out _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
