@@ -30,7 +30,79 @@ python verdant_solar_fetch_simple.py --station 60BHnnnnnnXnnn #no verdant_config
 
 # 4. Generate charts
 python verdant_solar_viz.py                       # reads the latest JSON
+
+# 5. Or open the interactive web dashboard
+python verdant_solar_web.py                       # http://127.0.0.1:8765
 ```
+
+## Web dashboard
+
+One dependency-free page (`web/index.html`, plain HTML/CSS/JS, no CDN) that
+auto-detects where it runs:
+
+- **With the local server** (`python verdant_solar_web.py` →
+  `http://127.0.0.1:8765`): live mode goes through the server proxy (which can
+  also save snapshots to disk), and snapshots come from the output dir.
+- **Static hosting** (GitHub / Cloudflare Pages, or any `python -m
+  http.server`): the page calls the API **directly from the browser** — the
+  upstream sends `Access-Control-Allow-Origin: *` (verified preflight +
+  POST), so live mode and 5-min auto-refresh need no backend at all. Bundled
+  JSON files are listed via `data/manifest.json`.
+- **Date picker** — From/To range, defaults to today.
+- **Auto-refresh** — live mode re-fetches every 5 minutes (toggle + countdown
+  in the toolbar); optionally tick *Save snapshot* to persist each refresh
+  into `verdant_output/` so it also shows up under "Downloaded JSON".
+- **Charts** — daily PV-yield bars with a peak-power line, and intraday
+  5-minute line charts (PV / Load / Grid / Net + Battery %) with hover
+  tooltips, legend toggles, and time in ascending order.
+
+```bash
+python verdant_solar_web.py                       # defaults from verdant_config.yaml
+python verdant_solar_web.py --port 9000           # pick a different port
+python verdant_solar_web.py --station 60BHn... --host 0.0.0.0   # LAN-accessible
+```
+
+## Static deployment (GitHub / Cloudflare Pages)
+
+`publish_static.py` builds a self-contained site in `_site/`: the dashboard
+page plus up to `--max` (default 20) newest snapshots from `verdant_output/`
+and a generated `data/manifest.json` that the page uses to populate its
+"Downloaded JSON" dropdown.
+
+```bash
+python publish_static.py                  # builds ./_site
+python publish_static.py --out _site --max 5
+python -m http.server -d _site 8080       # preview locally
+```
+
+Because the upstream API sends `Access-Control-Allow-Origin: *`, the deployed
+page keeps full **live mode** (direct browser fetch + 5-min auto-refresh)
+without any server — the bundled JSON is just an optional offline/historical
+source.
+
+### GitHub Pages (auto-refreshing via Actions)
+
+1. Copy `deploy/verdant-pages.yml.example` to
+   `.github/workflows/verdant-pages.yml` (it ships as `.example` so it can't
+   activate silently).
+2. In repo **Settings → Pages**, set **Source = GitHub Actions**.
+3. In **Settings → Secrets and variables → Actions → Variables**, add
+   `VERNANT_STATION_ID` with your station serial number.
+4. Push. The workflow fetches the last 14 days every 15 minutes (GitHub cron
+   floor), publishes `_site/` with the official Pages Actions, and also runs
+   on manual dispatch or on pushes to the listed paths.
+
+If you commit JSON files to the repo instead, skip the fetch step and point
+`upload-pages-artifact` at a directory built by `publish_static.py`.
+
+### Cloudflare Pages
+
+- **Direct upload:** run `python publish_static.py`, then drag the `_site/`
+  folder into the Cloudflare Pages dashboard (or `wrangler pages deploy _site`).
+- **Git build:** build command `pip install pyyaml && python publish_static.py
+  --out _site`, output directory `_site`. The page's live mode then refreshes
+  from the API on every visitor's side; commit new snapshots to update the
+  bundled history.
 
 ## Configuration
 
@@ -100,5 +172,9 @@ Note: the API may return empty data (`"data": []`) for future dates — the serv
 | `verdant_solar_fetch.py` | Fetch station-day data |
 | `verdant_solar_fetch_simple.py` | Fetch station-day data with just Device Serial Number |
 | `verdant_solar_viz.py` | Visualise — daily bars or intraday lines |
+| `verdant_solar_web.py` | Interactive web dashboard (live API + saved JSON, 5-min auto-refresh) |
+| `web/index.html` | Dashboard page (plain HTML/CSS/JS, works served or static) |
+| `publish_static.py` | Build a deployable static site bundle in `_site/` |
+| `deploy/verdant-pages.yml.example` | GitHub Actions workflow template for auto-refreshing Pages |
 | `verdant_config.yaml` | Config template |
 | `.gitignore` | Git ignore rules |

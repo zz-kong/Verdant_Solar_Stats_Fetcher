@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verdant Solar — Dashboard</title>
+<style>
+  :root {
+    --pv: #FFB800; --load: #4A90D9; --grid: #FF6B35;
+    --battery: #50C878; --net: #9B59B6;
+    --ink: #22272e; --muted: #6b7480; --line: #e3e7ec;
+    --bg: #f4f6f8; --panel: #ffffff; --accent: #1a7f37;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 14px 24px; display: flex; align-items: baseline;
+    gap: 16px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 19px; margin: 0; }
+  #statusLine { color: var(--muted); font-size: 13px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 18px 16px 48px; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 10px; display: flex;
+              align-items: center; gap: 10px; flex-wrap: wrap; }
+  .panel h2 .sub { color: var(--muted); font-weight: 400; font-size: 13px; }
+
+  .controls { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input[type="text"], .field input[type="date"], .field select {
+    padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px;
+    font: inherit; background: #fff; color: var(--ink); min-width: 120px;
+  }
+  input:disabled, select:disabled { background: #f0f2f4; color: #9aa4af; }
+  button {
+    padding: 8px 16px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--accent); color: #fff; font: inherit; cursor: pointer;
+  }
+  button.secondary { background: #fff; color: var(--ink); }
+  button:hover { filter: brightness(0.95); }
+  .segmented { display: inline-flex; border: 1px solid var(--line);
+               border-radius: 7px; overflow: hidden; }
+  .segmented button { border: none; border-radius: 0; background: #fff;
+                      color: var(--ink); padding: 8px 14px; }
+  .segmented button.active { background: var(--accent); color: #fff; }
+  .segmented button:disabled { color: #b7bec7; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px;
+           color: var(--ink); padding-bottom: 8px; }
+  #countdown { font-variant-numeric: tabular-nums; color: var(--muted);
+               font-size: 13px; padding-bottom: 8px; }
+  #fileRow { display: none; }
+  #fileRow.visible { display: flex; }
+  details#adv { font-size: 12.5px; color: var(--muted); padding-bottom: 4px; }
+  details#adv input { padding: 5px 8px; border: 1px solid var(--line);
+                      border-radius: 6px; font: inherit; width: 290px; }
+  #saveRow { display: none; }
+  #saveRow.visible { display: flex; }
+
+  .notice {
+    display: none; background: #fff4e5; border: 1px solid #f0c987;
+    color: #7a5200; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+  }
+  .notice.visible { display: block; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+           gap: 12px; margin-bottom: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 10px; padding: 12px 14px; }
+  .card .k { font-size: 12px; color: var(--muted); }
+  .card .v { font-size: 21px; font-weight: 650; margin-top: 2px; }
+  .card .u { font-size: 12px; color: var(--muted); font-weight: 400; }
+
+  .chartwrap { position: relative; }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .axis text { font-size: 11px; fill: var(--muted); }
+  .axis line, .axis path { stroke: var(--line); }
+  .gridline { stroke: var(--line); stroke-dasharray: 3 3; }
+  .zero { stroke: #b7bec7; stroke-width: 1; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+
+  .tooltip {
+    position: absolute; pointer-events: none; display: none; z-index: 5;
+    background: rgba(30,34,40,.93); color: #fff; border-radius: 7px;
+    padding: 7px 10px; font-size: 12px; white-space: nowrap;
+  }
+  .tooltip .tt-title { font-weight: 600; margin-bottom: 3px; }
+  .tooltip .tt-row .swatch { display: inline-block; width: 8px; height: 8px;
+                             border-radius: 2px; margin-right: 5px; }
+
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend button {
+    background: #fff; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 12px; font-size: 12.5px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .legend button .dot { width: 9px; height: 9px; border-radius: 3px; }
+  .legend button.off { opacity: .38; }
+  select { padding: 6px 9px; border: 1px solid var(--line);
+           border-radius: 7px; font: inherit; background: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>☀️ Verdant Solar</h1>
+  <div id="statusLine">loading…</div>
+</header>
+
+<main>
+  <section class="panel controls">
+    <div class="field">
+      <label>Source</label>
+      <div class="segmented" id="sourceToggle">
+        <button data-mode="live" class="active">Live API</button>
+        <button data-mode="file" id="btnFile">Snapshots</button>
+      </div>
+    </div>
+    <div class="field" id="stationField">
+      <label for="stationInput">Station ID</label>
+      <input type="text" id="stationInput" style="width:170px" placeholder="your inverter serial">
+    </div>
+    <div class="field">
+      <label for="startInput" id="startLabel">From</label>
+      <input type="date" id="startInput">
+    </div>
+    <div class="field">
+      <label for="endInput">To</label>
+      <input type="date" id="endInput">
+    </div>
+    <div class="field" id="fileRow">
+      <label for="fileSelect">Snapshot</label>
+      <select id="fileSelect" style="max-width:340px"></select>
+    </div>
+    <button id="loadBtn">Load</button>
+    <div class="check" id="saveRow">
+      <input type="checkbox" id="saveSnapshot"> <label for="saveSnapshot">Save snapshot</label>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="autoRefresh" checked> <label for="autoRefresh">Auto-refresh 5 min</label>
+    </div>
+    <span id="countdown"></span>
+    <details id="adv" style="flex-basis:100%">
+      <summary>Advanced</summary>
+      API base URL <input type="text" id="apiBase"> — only used when calling the
+      API directly from the browser (no local server).
+    </details>
+  </section>
+
+  <div class="notice" id="notice"></div>
+
+  <section class="cards" id="cards"></section>
+
+  <section class="panel">
+    <h2>Daily summary <span class="sub" id="dailyRange"></span></h2>
+    <div class="chartwrap" id="dailyChart"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Intraday (5-min points)
+      <select id="daySelect"></select>
+      <span class="sub">time ascending · hover for values</span>
+    </h2>
+    <div class="legend" id="legend"></div>
+    <div class="chartwrap" id="intradayChart"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+// ── constants & state ───────────────────────────────────────
+const REFRESH_SECONDS = 300;
+const DEFAULT_API_BASE = "https://booking.verdantsolar.my";
+const COLORS = { pv: "#FFB800", load: "#4A90D9", grid: "#FF6B35",
+                 battery: "#50C878", net: "#9B59B6" };
+
+const state = {
+  serverPresent: false,     // verdant_solar_web.py is serving us (api/health ok)
+  health: null,             // payload of api/health when server is present
+  mode: "live",             // "live" | "file"
+  auto: true,
+  countdown: REFRESH_SECONDS,
+  loading: false,
+  allByDay: new Map(),      // every day ingested from the current source
+  allDays: [],              // ascending YYYY-MM-DD, unfiltered
+  days: [],                 // ascending, after date-range filter
+  byDay: new Map(),         // day -> {rec, pts(ascending), peak} (filtered)
+  day: null,
+  hidden: new Set(),        // hidden intraday series
+  sources: [],              // snapshot sources [{name, station, start, end, size, url}]
+};
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  status: $("statusLine"), notice: $("notice"), cards: $("cards"),
+  daily: $("dailyChart"), dailyRange: $("dailyRange"),
+  intraday: $("intradayChart"), daySelect: $("daySelect"), legend: $("legend"),
+  station: $("stationInput"), start: $("startInput"), end: $("endInput"),
+  startLabel: $("startLabel"),
+  fileRow: $("fileRow"), fileSelect: $("fileSelect"), btnFile: $("btnFile"),
+  loadBtn: $("loadBtn"), autoRefresh: $("autoRefresh"),
+  saveRow: $("saveRow"), saveSnapshot: $("saveSnapshot"),
+  countdown: $("countdown"), apiBase: $("apiBase"),
+};
+
+// ── small helpers ───────────────────────────────────────────
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(name, attrs = {}, parent = null) {
+  const n = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+const fmt = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v))
+  ? "–" : Number(v).toFixed(d);
+const hhmm = (t) => new Date(t).toLocaleTimeString([],
+  { hour: "2-digit", minute: "2-digit" });
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` +
+         `-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function showNotice(msg) {
+  els.notice.textContent = msg;
+  els.notice.classList.toggle("visible", !!msg);
+}
+
+async function getJSON(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status} on ${url}`);
+  if (data.success === false) throw new Error(data.error || "API error");
+  return data;
+}
+
+// Nice axis ticks (Axel Thall's algorithm).
+function niceNum(range, round) {
+  const exp = Math.floor(Math.log10(range));
+  const f = range / Math.pow(10, exp);
+  const nf = round ? (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10)
+                   : (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10);
+  return nf * Math.pow(10, exp);
+}
+function niceTicks(min, max, n = 5) {
+  if (min === max) { min -= 0.5; max += 0.5; }
+  const step = niceNum(niceNum(max - min, false) / (n - 1), true);
+  const lo = Math.floor(min / step) * step;
+  const hi = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = lo; v <= hi + step / 2; v += step) ticks.push(+v.toFixed(6));
+  return { lo, hi, ticks };
+}
+function timeTicks(t0, t1, target = 8) {
+  const steps = [1, 5, 15, 30, 60, 120, 240, 360, 720].map((m) => m * 60000);
+  const step = steps.find((s) => (t1 - t0) / s <= target) || steps.at(-1);
+  const out = [];
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) out.push(t);
+  return out;
+}
+
+// ── tooltip shared machinery ────────────────────────────────
+function makeTooltip(host) {
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  host.appendChild(tip);
+  return {
+    show(html, clientX, clientY) {
+      tip.innerHTML = html;
+      tip.style.display = "block";
+      const box = host.getBoundingClientRect();
+      let x = clientX - box.left + 14, y = clientY - box.top - 10;
+      if (x + tip.offsetWidth > box.width - 4) x -= tip.offsetWidth + 28;
+      tip.style.left = x + "px";
+      tip.style.top = Math.max(0, y) + "px";
+    },
+    hide() { tip.style.display = "none"; },
+  };
+}
+
+// ── data pipeline ───────────────────────────────────────────
+function ingest(raw) {
+  state.allByDay = new Map();
+  const recs = raw && Array.isArray(raw.data) ? raw.data : [];
+  for (const rec of recs) {
+    const day = String(rec.day || "").slice(0, 10);
+    if (!day) continue;
+    const pts = (Array.isArray(rec.stationData) ? rec.stationData : [])
+      .map((p) => ({
+        t: Number(p.time),
+        pv: Number(p.pv) || 0,
+        load: Number(p.load) || 0,
+        grid: Number(p.grid) || 0,
+        soc: Number(p.batteryPercentage) || 0,
+      }))
+      .filter((p) => Number.isFinite(p.t))
+      .sort((a, b) => a.t - b.t);          // time ascending
+    for (const p of pts) p.net = p.grid - p.load;   // matches verdant_solar_viz.py
+    let peak = null;
+    for (const p of pts) if (peak === null || p.pv > peak) peak = p.pv;
+    state.allByDay.set(day, { rec, pts, peak });
+  }
+  state.allDays = [...state.allByDay.keys()].sort();  // ascending
+}
+
+function applyDateFilter() {
+  const from = els.start.value || "";
+  const to = els.end.value || "";
+  state.days = state.allDays.filter((d) => (!from || d >= from) && (!to || d <= to));
+  state.byDay = new Map(state.days.map((d) => [d, state.allByDay.get(d)]));
+}
+
+// ── summary cards ───────────────────────────────────────────
+function renderCards() {
+  const box = els.cards;
+  box.innerHTML = "";
+  if (!state.day) return;
+  const { rec, pts, peak } = state.byDay.get(state.day);
+  const last = pts.length ? pts.at(-1) : null;
+  const totalPts = [...state.byDay.values()].reduce((n, d) => n + d.pts.length, 0);
+  const items = [
+    ["Day", state.day, ""],
+    ["PV yield", fmt(rec.pvYield, 2), "kWh"],
+    ["Peak PV power", peak !== null ? fmt(peak, 2) : "–", "kW"],
+    ["Latest load", last ? fmt(last.load, 2) : "–", "kW"],
+    ["Latest battery", last ? fmt(last.soc, 0) : "–", "%"],
+    ["Days / points", `${state.days.length} / ${totalPts}`, ""],
+  ];
+  for (const [k, v, u] of items) {
+    const c = document.createElement("div");
+    c.className = "card";
+    c.innerHTML = `<div class="k">${k}</div>
+      <div class="v">${v} <span class="u">${u}</span></div>`;
+    box.appendChild(c);
+  }
+}
+
+// ── daily bar chart (PV yield bars + peak power line) ──────
+function renderDaily() {
+  const host = els.daily;
+  host.innerHTML = "";
+  els.dailyRange.textContent = state.days.length
+    ? `${state.days[0]} → ${state.days.at(-1)}` : "";
+  if (!state.days.length) {
+    host.innerHTML = `<p class="empty">No records in this range.</p>`;
+    return;
+  }
+  const days = state.days;
+  const yields = days.map((d) => Number(state.byDay.get(d).rec.pvYield) || 0);
+  const peaks = days.map((d) => state.byDay.get(d).peak);
+
+  const W = 960, H = 300, L = 56, R = 56, T = 28, B = 40;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart" });
+  host.appendChild(svg);
+  const plotW = W - L - R, plotH = H - T - B;
+
+  const yL = niceTicks(0, Math.max(...yields, 0.001), 5);
+  const anyPeak = peaks.some((p) => p !== null);
+  const yR = niceTicks(0, Math.max(0.001, ...peaks.filter((p) => p !== null)), 5);
+  const yOf = (v) => T + plotH - (v - yL.lo) / (yL.hi - yL.lo) * plotH;
+  const ypOf = (v) => T + plotH - (v - yR.lo) / (yR.hi - yR.lo) * plotH;
+
+  const gAxis = svgEl("g", { class: "axis" }, svg);
+  for (const v of yL.ticks) {
+    svgEl("line", { x1: L, x2: W - R, y1: yOf(v), y2: yOf(v), class: "gridline" }, gAxis);
+    svgEl("text", { x: L - 8, y: yOf(v) + 4, "text-anchor": "end" }, gAxis)
+      .textContent = v;
+  }
+  if (anyPeak) for (const v of yR.ticks)
+    svgEl("text", { x: W - R + 8, y: ypOf(v) + 4 }, gAxis).textContent = v;
+  svgEl("text", { x: L - 8, y: T - 14, "text-anchor": "end" }, gAxis).textContent = "kWh";
+  if (anyPeak)
+    svgEl("text", { x: W - R + 8, y: T - 14 }, gAxis).textContent = "kW";
+
+  const band = plotW / days.length;
+  const bw = Math.min(band * 0.6, 46);
+  const xC = (i) => L + band * (i + 0.5);
+
+  const gBars = svgEl("g", {}, svg);
+  days.forEach((_, i) => {
+    const y = yOf(yields[i]);
+    svgEl("rect", {
+      x: xC(i) - bw / 2, y, width: bw, height: yOf(0) - y,
+      fill: COLORS.pv, stroke: "#E0A800", rx: 2,
+    }, gBars);
+  });
+
+  if (anyPeak) {
+    let d = "", started = false;
+    peaks.forEach((p, i) => {
+      if (p === null) return;
+      d += `${started ? "L" : "M"}${xC(i)},${ypOf(p)}`;
+      started = true;
+    });
+    svgEl("path", { d, fill: "none", stroke: COLORS.grid, "stroke-width": 2 }, svg);
+    peaks.forEach((p, i) => {
+      if (p !== null)
+        svgEl("circle", { cx: xC(i), cy: ypOf(p), r: 3, fill: COLORS.grid }, svg);
+    });
+  }
+
+  const every = Math.ceil(days.length / 14);
+  const gX = svgEl("g", { class: "axis" }, svg);
+  days.forEach((d, i) => {
+    if (i % every) return;
+    svgEl("text", { x: xC(i), y: H - B + 16, "text-anchor": "middle" }, gX)
+      .textContent = d.slice(5);
+  });
+  svgEl("line", { x1: L, x2: W - R, y1: yOf(0), y2: yOf(0), stroke: "#b7bec7" }, svg);
+
+  const tip = makeTooltip(host);
+  const overlay = svgEl("rect", {
+    x: L, y: T, width: plotW, height: plotH, fill: "transparent",
+  }, svg);
+  overlay.addEventListener("pointermove", (e) => {
+    const pt = svgPoint(svg, e);
+    const i = Math.min(days.length - 1, Math.max(0, Math.floor((pt.x - L) / band)));
+    const label = `<div class="tt-title">${days[i]}</div>
+      <div class="tt-row"><span class="swatch" style="background:${COLORS.pv}"></span>Yield ${fmt(yields[i], 2)} kWh</div>
+      <div class="tt-row"><span class="swatch" style="background:${COLORS.grid}"></span>Peak PV ${fmt(peaks[i], 2)} kW</div>`;
+    tip.show(label, e.clientX, e.clientY);
+  });
+  overlay.addEventListener("pointerleave", () => tip.hide());
+}
+
+function svgPoint(svg, e) {
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return {
+    x: (e.clientX - r.left) / r.width * vb.width,
+    y: (e.clientY - r.top) / r.height * vb.height,
+  };
+}
+
+// ── intraday multi-line chart ───────────────────────────────
+const SERIES = [
+  { key: "pv",    label: "PV (kW)",     axis: "L", color: COLORS.pv },
+  { key: "load",  label: "Load (kW)",   axis: "L", color: COLORS.load },
+  { key: "grid",  label: "Grid (kW)",   axis: "L", color: COLORS.grid },
+  { key: "net",   label: "Net (kW)",    axis: "L", color: COLORS.net },
+  { key: "soc",   label: "Battery (%)", axis: "R", color: COLORS.battery },
+];
+
+function renderLegend() {
+  els.legend.innerHTML = "";
+  for (const s of SERIES) {
+    const b = document.createElement("button");
+    b.innerHTML = `<span class="dot" style="background:${s.color}"></span>${s.label}`;
+    b.classList.toggle("off", state.hidden.has(s.key));
+    b.addEventListener("click", () => {
+      state.hidden.has(s.key) ? state.hidden.delete(s.key) : state.hidden.add(s.key);
+      renderIntraday();
+    });
+    els.legend.appendChild(b);
+  }
+}
+
+function renderIntraday() {
+  renderLegend();
+  const host = els.intraday;
+  host.innerHTML = "";
+  const dayData = state.day ? state.byDay.get(state.day) : null;
+  if (!dayData) {
+    host.innerHTML = `<p class="empty">Pick a day with data.</p>`;
+    return;
+  }
+  const pts = dayData.pts;
+  if (!pts.length) {
+    host.innerHTML = `<p class="empty">No 5-minute points stored for ${state.day}.</p>`;
+    return;
+  }
+  const visible = SERIES.filter((s) => !state.hidden.has(s.key));
+  const leftVis = visible.filter((s) => s.axis === "L");
+
+  const W = 960, H = 360, L = 56, R = 56, T = 14, B = 34;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart" });
+  host.appendChild(svg);
+  const plotW = W - L - R, plotH = H - T - B;
+  const t0 = pts[0].t, t1 = pts.at(-1).t;
+  const xOf = (t) => L + (t1 === t0 ? plotW / 2
+    : (t - t0) / (t1 - t0) * plotW);
+
+  let ymin = 0, ymax = 0.001;
+  for (const s of leftVis) for (const p of pts) {
+    if (p[s.key] < ymin) ymin = p[s.key];
+    if (p[s.key] > ymax) ymax = p[s.key];
+  }
+  const yL = niceTicks(ymin, ymax, 6);
+  const yOf = (v) => T + plotH - (v - yL.lo) / (yL.hi - yL.lo) * plotH;
+  const pOf = (pct) => T + plotH - pct / 100 * plotH;
+
+  const gAxis = svgEl("g", { class: "axis" }, svg);
+  for (const v of yL.ticks) {
+    svgEl("line", { x1: L, x2: W - R, y1: yOf(v), y2: yOf(v), class: "gridline" }, gAxis);
+    svgEl("text", { x: L - 8, y: yOf(v) + 4, "text-anchor": "end" }, gAxis).textContent = v;
+  }
+  for (const v of [0, 25, 50, 75, 100]) {
+    svgEl("text", { x: W - R + 8, y: pOf(v) + 4 }, gAxis).textContent = v + "%";
+  }
+  if (yL.lo < 0)
+    svgEl("line", { x1: L, x2: W - R, y1: yOf(0), y2: yOf(0), class: "zero" }, svg);
+
+  for (const t of timeTicks(t0, t1)) {
+    svgEl("text", { x: xOf(t), y: H - B + 16, "text-anchor": "middle" }, gAxis)
+      .textContent = hhmm(t);
+  }
+
+  for (const s of visible) {
+    let d = "";
+    pts.forEach((p, i) => {
+      const y = s.axis === "L" ? yOf(p[s.key]) : pOf(p[s.key]);
+      d += `${i ? "L" : "M"}${xOf(p.t).toFixed(1)},${y.toFixed(1)}`;
+    });
+    svgEl("path", { d, fill: "none", stroke: s.color,
+                    "stroke-width": s.axis === "R" ? 1.4 : 1.8,
+                    "stroke-linejoin": "round",
+                    "stroke-dasharray": s.axis === "R" ? "4 3" : "" }, svg);
+  }
+
+  const guide = svgEl("line", { y1: T, y2: T + plotH, stroke: "#9aa4af",
+                                "stroke-dasharray": "2 2", visibility: "hidden" }, svg);
+  const dots = visible.map((s) => svgEl("circle", { r: 3.5, fill: s.color,
+                                stroke: "#fff", visibility: "hidden" }, svg));
+
+  const tip = makeTooltip(host);
+  const overlay = svgEl("rect", { x: L, y: T, width: plotW, height: plotH,
+                                  fill: "transparent" }, svg);
+  overlay.addEventListener("pointermove", (e) => {
+    const pt = svgPoint(svg, e);
+    let lo = 0, hi = pts.length - 1;          // nearest point by time
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (xOf(pts[mid].t) < pt.x) lo = mid; else hi = mid;
+    }
+    const i = (pt.x - xOf(pts[lo].t) <= xOf(pts[hi].t) - pt.x) ? lo : hi;
+    const p = pts[i];
+    guide.setAttribute("x1", xOf(p.t)); guide.setAttribute("x2", xOf(p.t));
+    guide.setAttribute("visibility", "visible");
+    visible.forEach((s, k) => {
+      dots[k].setAttribute("cx", xOf(p.t));
+      dots[k].setAttribute("cy", s.axis === "L" ? yOf(p[s.key]) : pOf(p[s.key]));
+      dots[k].setAttribute("visibility", "visible");
+    });
+    const rows = visible.map((s) =>
+      `<div class="tt-row"><span class="swatch" style="background:${s.color}"></span>${s.label.replace(" (kW)", "").replace(" (%)", "")}: ${fmt(p[s.key], s.axis === "R" ? 0 : 2)}${s.axis === "R" ? "%" : ""}</div>`
+    ).join("");
+    tip.show(`<div class="tt-title">${hhmm(p.t)}</div>${rows}`,
+             e.clientX, e.clientY);
+  });
+  overlay.addEventListener("pointerleave", () => {
+    tip.hide();
+    guide.setAttribute("visibility", "hidden");
+    dots.forEach((d) => d.setAttribute("visibility", "hidden"));
+  });
+}
+
+// ── full render pass ────────────────────────────────────────
+function render() {
+  const keep = state.day && state.byDay.has(state.day) ? state.day : null;
+  state.day = keep || state.days.at(-1) || null;
+
+  els.daySelect.innerHTML = "";
+  for (const d of state.days) {
+    const o = document.createElement("option");
+    o.value = d;
+    const info = state.byDay.get(d);
+    o.textContent = `${d}${info.pts.length ? "" : " (no 5-min data)"}`;
+    els.daySelect.appendChild(o);
+  }
+  els.daySelect.value = state.day || "";
+  els.daySelect.disabled = !state.days.length;
+
+  renderCards();
+  renderDaily();
+  renderIntraday();
+}
+
+// ── snapshot sources (manifest file and/or local server) ───
+const NAME_RE = /^verdant_raw_(.+?)_(\d{4}-\d{2}-\d{2})_to_(\d{4}-\d{2}-\d{2})(?:_.*)?\.json$/;
+
+function parseName(name) {
+  const m = NAME_RE.exec(name);
+  return m ? { station: m[1], start: m[2], end: m[3] } : {};
+}
+
+async function refreshSources() {
+  const byName = new Map();
+  // 1) static bundle manifest (GitHub / Cloudflare Pages deployment)
+  try {
+    const man = await getJSON("data/manifest.json?v=" + Date.now());
+    for (const f of man.files || []) {
+      byName.set(f.name, {
+        name: f.name, station: f.station, start: f.start, end: f.end,
+        size: f.size, url: "data/" + encodeURIComponent(f.name),
+        modified: f.modified,
+      });
+    }
+  } catch { /* not a static bundle — fine */ }
+  // 2) local server's output dir (verdant_solar_web.py)
+  if (state.serverPresent) {
+    try {
+      const r = await getJSON("api/files?v=" + Date.now());
+      for (const f of r.files || []) {
+        byName.set(f.name, {
+          name: f.name, station: f.station, start: f.start, end: f.end,
+          size: f.size, url: "api/files/" + encodeURIComponent(f.name),
+          modified: f.modified,
+        });
+      }
+    } catch { /* server without file API */ }
+  }
+  state.sources = [...byName.values()];
+  state.sources.sort((a, b) => String(b.modified || b.name).localeCompare(
+                              String(a.modified || a.name)));
+  els.fileSelect.innerHTML = "";
+  for (const f of state.sources) {
+    const o = document.createElement("option");
+    o.value = f.name;
+    o.textContent = `${f.name}${f.start ? ` — ${f.start}→${f.end}` : ""}` +
+                    `${f.size ? ` · ${(f.size / 1024).toFixed(0)} kB` : ""}`;
+    els.fileSelect.appendChild(o);
+  }
+  const none = !state.sources.length;
+  els.btnFile.disabled = none;
+  if (none && state.mode === "file") setMode("live");
+  return state.sources;
+}
+
+function currentSource() {
+  return state.sources.find((f) => f.name === els.fileSelect.value) || null;
+}
+
+// ── live fetch (server proxy when present, direct browser call otherwise) ──
+async function fetchLive() {
+  const station = els.station.value.trim();
+  if (!station) throw new Error("Enter your station ID (inverter serial number).");
+  if (state.serverPresent) {
+    const u = new URL("api/data", location.href);
+    u.searchParams.set("station", station);
+    u.searchParams.set("start", els.start.value);
+    u.searchParams.set("end", els.end.value);
+    if (els.saveRow.classList.contains("visible") && els.saveSnapshot.checked)
+      u.searchParams.set("save", "1");
+    return await getJSON(u);
+  }
+  const base = (els.apiBase.value.trim() || DEFAULT_API_BASE).replace(/\/+$/, "");
+  let r;
+  try {
+    r = await fetch(base + "/api/vMongoDevice/station-day", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ startDate: els.start.value,
+                             endDate: els.end.value, stationId: station }),
+    });
+  } catch (e) {
+    throw new Error("API unreachable from the browser (offline or CORS): " + e.message);
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok)
+    throw new Error(data.message || data.error || `API returned HTTP ${r.status}`);
+  if (data.success === false)
+    throw new Error(data.message || data.error || "API error");
+  return data;
+}
+
+// ── loading & refresh ───────────────────────────────────────
+async function loadData(automatic = false) {
+  if (state.loading) return;
+  state.loading = true;
+  els.loadBtn.disabled = true;
+  setStatus(automatic ? "auto-refreshing…" : "loading…");
+  try {
+    let raw, label;
+    if (state.mode === "live") {
+      raw = await fetchLive();
+      label = `station ${els.station.value.trim()} · live`;
+    } else {
+      const want = els.fileSelect.value;
+      await refreshSources();          // pick up files added by a new deploy
+      if (state.sources.some((f) => f.name === want)) els.fileSelect.value = want;
+      const src = currentSource();
+      if (!src) throw new Error("pick a snapshot file");
+      raw = await getJSON(src.url + (src.url.includes("?") ? "&" : "?") + "v=" + Date.now());
+      label = `snapshot ${src.name}`;
+    }
+    ingest(raw);
+    if (state.mode === "file" && !els.start.value) {
+      // first view of a snapshot: prefill the picker with its own range
+      const src = currentSource();
+      if (src && src.start && src.end) { els.start.value = src.start; els.end.value = src.end; }
+    }
+    applyDateFilter();
+    render();
+    state.countdown = REFRESH_SECONDS;
+    if (!state.allDays.length)
+      showNotice("The API returned no records for this range — the server only " +
+                 "stores historical data, so future dates come back empty.");
+    else if (!state.days.length)
+      showNotice(`The ${state.allDays[0]} → ${state.allDays.at(-1)} snapshot has ` +
+                 "no days inside the selected From/To range.");
+    else showNotice("");
+    setStatus(`${label} · updated ${new Date().toLocaleTimeString()}`);
+  } catch (err) {
+    showNotice("⚠ " + err.message);
+    setStatus("load failed");
+  } finally {
+    state.loading = false;
+    els.loadBtn.disabled = false;
+  }
+}
+
+function setStatus(text) { els.status.textContent = text; }
+
+setInterval(() => {
+  if (!state.auto) { els.countdown.textContent = "auto-refresh off"; return; }
+  state.countdown--;
+  if (state.countdown <= 0) {
+    state.countdown = REFRESH_SECONDS;
+    loadData(true);
+  }
+  const m = Math.floor(state.countdown / 60), s = state.countdown % 60;
+  els.countdown.textContent = `next refresh ${m}:${String(s).padStart(2, "0")}`;
+}, 1000);
+
+// ── controls wiring ─────────────────────────────────────────
+function setMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll("#sourceToggle button").forEach(
+    (x) => x.classList.toggle("active", x.dataset.mode === mode));
+  const live = mode === "live";
+  els.fileRow.classList.toggle("visible", !live);
+  els.startLabel.textContent = live ? "From" : "Filter from";
+  for (const el of [els.station]) el.disabled = !live;
+}
+
+document.querySelectorAll("#sourceToggle button").forEach((b) =>
+  b.addEventListener("click", async () => {
+    if (b.dataset.mode === state.mode) return;
+    setMode(b.dataset.mode);
+    if (!live_check(b.dataset.mode)) return;
+    if (!state.sources.length) await refreshSources();
+    loadData();
+  }));
+function live_check(mode) {
+  if (mode === "file" && !state.sources.length) {
+    showNotice("⚠ No snapshots available — no data/manifest.json was deployed.");
+    setMode("live");
+    return false;
+  }
+  return true;
+}
+
+els.loadBtn.addEventListener("click", () => {
+  if (state.mode === "file") refreshSources();   // pick up newly deployed files
+  loadData();
+});
+els.daySelect.addEventListener("change", () => {
+  state.day = els.daySelect.value;
+  renderCards();
+  renderIntraday();
+});
+els.autoRefresh.addEventListener("change", () => {
+  state.auto = els.autoRefresh.checked;
+  state.countdown = REFRESH_SECONDS;
+});
+els.fileSelect.addEventListener("change", () => {
+  const src = currentSource();
+  if (src && src.start && src.end) { els.start.value = src.start; els.end.value = src.end; }
+  loadData();
+});
+for (const el of [els.start, els.end]) {
+  el.addEventListener("change", () => {
+    if (els.start.value && els.end.value && els.start.value > els.end.value)
+      els.end.value = els.start.value;
+    if (state.mode === "file") {         // dates filter already-loaded data
+      applyDateFilter();
+      render();
+    }
+  });
+}
+els.station.addEventListener("change", () =>
+  localStorage.setItem("vs_station", els.station.value.trim()));
+els.apiBase.addEventListener("change", () =>
+  localStorage.setItem("vs_api_base", els.apiBase.value.trim()));
+
+// ── boot ────────────────────────────────────────────────────
+(async function init() {
+  els.apiBase.value = localStorage.getItem("vs_api_base") || DEFAULT_API_BASE;
+  // detect a running verdant_solar_web.py alongside this page
+  try {
+    state.health = await getJSON("api/health");
+    state.serverPresent = true;
+    els.saveRow.classList.add("visible");
+  } catch { /* static deployment — browser will call the API directly */ }
+
+  const savedStation = localStorage.getItem("vs_station");
+  els.station.value = savedStation
+    || (state.serverPresent && state.health.station) || "";
+  const today = (state.serverPresent && state.health.today) || localToday();
+  els.start.value = today; els.end.value = today;
+  for (const el of [els.start, els.end]) el.max = today;
+
+  await refreshSources();
+  if (state.sources.length && !state.serverPresent && !savedStation) {
+    setMode("file");                      // offline bundle: show data immediately
+    const src = currentSource();
+    if (src && src.start && src.end) {
+      els.start.value = src.start; els.end.value = src.end;
+    }
+  }
+  loadData();
+})();
+</script>
+</body>
+</html>
