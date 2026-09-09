@@ -1,0 +1,58 @@
+# ── Verdant Solar → GitHub Pages (no fetch — publishes committed JSON) ────
+# Copy this file to .github/workflows/verdant-pages.yml, then:
+#   1. Settings → Pages → Build and deployment → Source: **GitHub Actions**
+#
+# This workflow does NOT call the Verdant API. It just bundles whatever
+# verdant_raw_*.json files are committed to the repo (via publish_static.py)
+# and deploys them. The deployed page still fetches live data from the API
+# in the visitor's browser every 5 minutes — this only controls the bundled
+# snapshot history.
+#
+# NOTE: verdant_output/ is gitignored, so commit snapshots with
+#   git add -f verdant_output/verdant_raw_*.json
+# (or store them elsewhere and adjust the paths below).
+name: Publish Verdant Solar dashboard
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "verdant_output/**/*.json"
+      - "web/index.html"
+      - "publish_static.py"
+      - ".github/workflows/verdant-pages.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # publish_static.py is stdlib-only — no pip install needed.
+      - name: Build static bundle from committed snapshots
+        run: python publish_static.py --out _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
