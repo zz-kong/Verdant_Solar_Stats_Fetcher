@@ -64,45 +64,29 @@ python verdant_solar_web.py --station 60BHn... --host 0.0.0.0   # LAN-accessible
 
 ## Static deployment (GitHub / Cloudflare Pages)
 
-`publish_static.py` builds a self-contained site in `_site/`: the dashboard
-page plus up to `--max` (default 20) newest snapshots from `verdant_output/`
-and a generated `data/manifest.json` that the page uses to populate its
-"Downloaded JSON" dropdown.
+`publish_static.py` builds a self-contained site in `_site/` — the dashboard
+page with your station ID **baked in from `verdant_config.yaml`** (or pass
+`--station`), plus any snapshots from `verdant_output/` listed via
+`data/manifest.json`. No CI, no repo variables, no input of any kind.
 
 ```bash
 python publish_static.py                  # builds ./_site
-python publish_static.py --out _site --max 5
 python -m http.server -d _site 8080       # preview locally
 ```
 
-Because the upstream API sends `Access-Control-Allow-Origin: *`, the deployed
-page keeps full **live mode** (direct browser fetch + 5-min auto-refresh)
-without any server — the bundled JSON is just an optional offline/historical
-source.
+Deploy the `_site/` contents:
 
-### GitHub Pages (publish committed snapshots)
+- **Cloudflare Pages** — drag the `_site` folder into the dashboard
+  (*Direct Upload*), or `wrangler pages deploy _site`.
+- **GitHub Pages** — commit the `_site/` contents to the repo (e.g. a `docs/`
+  folder or a `gh-pages` branch), then **Settings → Pages → Deploy from a
+  branch**.
 
-1. Copy `deploy/verdant-pages.yml.example` to
-   `.github/workflows/verdant-pages.yml` (it ships as `.example` so it can't
-   activate silently).
-2. In repo **Settings → Pages**, set **Source = GitHub Actions**.
-3. Commit your snapshots (note `verdant_output/` is gitignored, so force-add
-   them: `git add -f verdant_output/verdant_raw_*.json`) and push.
-
-The workflow does **not** call the API and needs no station ID — it just runs
-`publish_static.py` over the committed JSON and deploys. It re-runs whenever
-you push new snapshots (or page changes), or via manual *workflow_dispatch*.
-Live data on the deployed page still refreshes in each visitor's browser
-every 5 minutes; the committed snapshots only provide the bundled history.
-
-### Cloudflare Pages
-
-- **Direct upload:** run `python publish_static.py`, then drag the `_site/`
-  folder into the Cloudflare Pages dashboard (or `wrangler pages deploy _site`).
-- **Git build:** build command `pip install pyyaml && python publish_static.py
-  --out _site`, output directory `_site`. The page's live mode then refreshes
-  from the API on every visitor's side; commit new snapshots to update the
-  bundled history.
+That's it. The upstream API sends `Access-Control-Allow-Origin: *`, so the
+deployed page fetches **live data in each visitor's browser** and
+auto-refreshes every 5 minutes — nothing server-side ever runs. Re-run
+`publish_static.py` (and re-upload/re-commit) only if you want to refresh the
+bundled snapshot history.
 
 ## Configuration
 
@@ -175,6 +159,5 @@ Note: the API may return empty data (`"data": []`) for future dates — the serv
 | `verdant_solar_web.py` | Interactive web dashboard (live API + saved JSON, 5-min auto-refresh) |
 | `web/index.html` | Dashboard page (plain HTML/CSS/JS, works served or static) |
 | `publish_static.py` | Build a deployable static site bundle in `_site/` |
-| `deploy/verdant-pages.yml.example` | GitHub Actions workflow template for auto-refreshing Pages |
 | `verdant_config.yaml` | Config template |
 | `.gitignore` | Git ignore rules |
