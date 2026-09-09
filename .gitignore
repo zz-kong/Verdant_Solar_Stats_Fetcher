@@ -17,6 +17,9 @@
 # ── Files to exclude from Git ──────────────────────
 **/__pycache__
 **/.pyc
+verdant_output/
+_site/
+*.log
 .env
 .venv/
 venv/
