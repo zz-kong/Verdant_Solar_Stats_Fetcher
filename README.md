@@ -80,20 +80,20 @@ page keeps full **live mode** (direct browser fetch + 5-min auto-refresh)
 without any server — the bundled JSON is just an optional offline/historical
 source.
 
-### GitHub Pages (auto-refreshing via Actions)
+### GitHub Pages (publish committed snapshots)
 
 1. Copy `deploy/verdant-pages.yml.example` to
    `.github/workflows/verdant-pages.yml` (it ships as `.example` so it can't
    activate silently).
 2. In repo **Settings → Pages**, set **Source = GitHub Actions**.
-3. In **Settings → Secrets and variables → Actions → Variables**, add
-   `VERNANT_STATION_ID` with your station serial number.
-4. Push. The workflow fetches the last 14 days every 15 minutes (GitHub cron
-   floor), publishes `_site/` with the official Pages Actions, and also runs
-   on manual dispatch or on pushes to the listed paths.
+3. Commit your snapshots (note `verdant_output/` is gitignored, so force-add
+   them: `git add -f verdant_output/verdant_raw_*.json`) and push.
 
-If you commit JSON files to the repo instead, skip the fetch step and point
-`upload-pages-artifact` at a directory built by `publish_static.py`.
+The workflow does **not** call the API and needs no station ID — it just runs
+`publish_static.py` over the committed JSON and deploys. It re-runs whenever
+you push new snapshots (or page changes), or via manual *workflow_dispatch*.
+Live data on the deployed page still refreshes in each visitor's browser
+every 5 minutes; the committed snapshots only provide the bundled history.
 
 ### Cloudflare Pages
 
