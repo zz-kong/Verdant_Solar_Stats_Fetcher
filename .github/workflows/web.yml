@@ -1,3 +1,12 @@
+# ── Verdant Solar → GitHub Pages ───────────────────────────────────────────
+# Copy this file to .github/workflows/verdant-pages.yml, then:
+#   1. Settings → Pages → Build and deployment → Source: **GitHub Actions**
+#   2. Settings → Secrets and variables → Actions → New repository variable:
+#        VERNANT_STATION_ID = your inverter serial number (60BHnnnnnnXnnn)
+#
+# It re-fetches the last 14 days every 15 minutes (GitHub's schedulers can
+# lag a few minutes; this is a pull-on-deploy snapshot, while the deployed
+# page itself still auto-refreshes live from the API every 5 min).
 name: Fetch & publish Verdant Solar dashboard
 
 on:
