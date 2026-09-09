@@ -793,7 +793,10 @@ els.apiBase.addEventListener("change", () =>
 
 // ── boot ────────────────────────────────────────────────────
 (async function init() {
-  els.apiBase.value = localStorage.getItem("vs_api_base") || DEFAULT_API_BASE;
+  // static bundles built by publish_static.py may bake in a default station
+  const defaults = window.VERNANT_DEFAULTS || {};
+  els.apiBase.value = localStorage.getItem("vs_api_base") || defaults.base
+                      || DEFAULT_API_BASE;
   // detect a running verdant_solar_web.py alongside this page
   try {
     state.health = await getJSON("api/health");
@@ -803,14 +806,18 @@ els.apiBase.addEventListener("change", () =>
 
   const savedStation = localStorage.getItem("vs_station");
   els.station.value = savedStation
-    || (state.serverPresent && state.health.station) || "";
+    || (state.serverPresent && state.health.station)
+    || defaults.station || "";
   const today = (state.serverPresent && state.health.today) || localToday();
   els.start.value = today; els.end.value = today;
   for (const el of [els.start, els.end]) el.max = today;
 
   await refreshSources();
-  if (state.sources.length && !state.serverPresent && !savedStation) {
-    setMode("file");                      // offline bundle: show data immediately
+  // offline bundle: show data immediately — but only when there is no
+  // station available for live mode (baked-in station → live by default)
+  if (state.sources.length && !state.serverPresent && !savedStation
+      && !defaults.station) {
+    setMode("file");
     const src = currentSource();
     if (src && src.start && src.end) {
       els.start.value = src.start; els.end.value = src.end;

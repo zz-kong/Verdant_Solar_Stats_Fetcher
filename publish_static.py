@@ -2,18 +2,22 @@
 """
 Verdant Solar — Static Site Publisher
 =======================================
-Builds a fully static bundle of the dashboard (web/index.html + downloaded
-JSON + manifest) ready for GitHub Pages or Cloudflare Pages.
+Builds a fully static bundle of the dashboard (web/index.html + optional
+downloaded JSON + manifest) ready for GitHub Pages, Cloudflare Pages, or any
+static host — no backend, no CI, no user input.
 
 The page itself works in both worlds:
   * Live mode — the upstream API sends `Access-Control-Allow-Origin: *`, so
     the browser calls it directly; 5-min auto-refresh keeps working without
     any server.
-  * Snapshot mode — the dashboard reads data/manifest.json and renders the
-    raw JSON copied here by this script.
+  * Snapshot mode (optional) — raw JSON files from verdant_output/ are
+    copied here and listed via data/manifest.json.
+
+The station ID is read from verdant_config.yaml (or --station) and baked
+into the page as a default, so the deployed site needs no user input.
 
 Run:
-    python publish_static.py                    # _site/ from verdant_output/
+    python publish_static.py                    # _site/ (station from config)
     python publish_static.py --out _site --max 14
     python -m http.server -d _site 8080         # preview locally
 """
@@ -31,27 +35,42 @@ NAME_RE = re.compile(
     r"(?P<start>\d{4}-\d{2}-\d{2})_to_(?P<end>\d{4}-\d{2}-\d{2})"
     r"(?:_.*)?\.json$")
 
+STATION_RE = re.compile(r"^\s*station_id\s*:\s*['\"]?([^'\"\n#]+?)\s*(?:#.*)?$",
+                        re.MULTILINE)
 
-def build(out_dir: Path, input_dir: Path, page: Path, max_files: int) -> int:
+
+def read_station(root: Path) -> str:
+    """Pull station_id out of verdant_config.yaml without needing pyyaml."""
+    cfg = root / "verdant_config.yaml"
+    if not cfg.is_file():
+        return ""
+    m = STATION_RE.search(cfg.read_text(encoding="utf-8"))
+    return m.group(1) if m else ""
+
+
+def build(out_dir: Path, input_dir: Path, page: Path, max_files: int,
+          station: str) -> int:
     if not page.is_file():
         sys.exit(f"[!] dashboard page not found: {page}")
-    if not input_dir.is_dir():
-        sys.exit(f"[!] no input dir: {input_dir} — run a fetcher first "
-                 f"(python verdant_solar_fetch_simple.py --station ...)")
 
-    candidates = sorted(input_dir.glob("verdant_raw_*.json"),
-                        key=lambda p: p.stat().st_mtime, reverse=True)
-    if not candidates:
-        sys.exit(f"[!] no verdant_raw_*.json files in {input_dir}")
-    if max_files > 0:
-        candidates = candidates[:max_files]
+    candidates = []
+    if input_dir.is_dir():
+        candidates = sorted(input_dir.glob("verdant_raw_*.json"),
+                            key=lambda p: p.stat().st_mtime, reverse=True)
+        if max_files > 0:
+            candidates = candidates[:max_files]
 
     data_dir = out_dir / "data"
     if out_dir.exists():
         shutil.rmtree(out_dir)
     data_dir.mkdir(parents=True)
 
-    shutil.copy2(page, out_dir / "index.html")
+    html = page.read_text(encoding="utf-8")
+    if station:
+        defaults = ("<script>window.VERNANT_DEFAULTS="
+                    + json.dumps({"station": station}) + ";</script>\n</head>")
+        html = html.replace("</head>", defaults, 1)
+    (out_dir / "index.html").write_text(html, encoding="utf-8")
 
     manifest = {"generated": datetime.now().isoformat(timespec="seconds"),
                 "files": []}
@@ -79,22 +98,32 @@ def main():
     parser.add_argument("--out", default="_site",
                         help="output directory (default _site)")
     parser.add_argument("--input-dir", default="verdant_output",
-                        help="directory holding verdant_raw_*.json files")
+                        help="directory holding verdant_raw_*.json files "
+                             "(optional — skipped if missing/empty)")
     parser.add_argument("--page", default="web/index.html",
                         help="dashboard HTML to bundle")
     parser.add_argument("--max", type=int, default=20,
                         help="max snapshot files to bundle, newest first "
                              "(0 = all, default 20)")
+    parser.add_argument("--station", default=None,
+                        help="station ID baked into the page "
+                             "(default: read from verdant_config.yaml)")
     args = parser.parse_args()
 
-    n = build(Path(args.out), Path(args.input_dir), Path(args.page), args.max)
+    station = args.station or read_station(Path(__file__).resolve().parent)
+    n = build(Path(args.out), Path(args.input_dir), Path(args.page),
+              args.max, station)
     total_mb = sum(p.stat().st_size for p in Path(args.out).rglob("*")) / 1e6
     print(f"[*] Static bundle ready in {args.out}/ ({n} snapshot(s), "
           f"{total_mb:.1f} MB)")
+    if station:
+        print(f"[*] Station ID baked in: {station}")
+    else:
+        print("[!] No station_id found (verdant_config.yaml) — visitors "
+              "will need to type it once in the page.")
     print("    Preview:  python -m http.server -d " + args.out + " 8080")
-    print("    GitHub Pages:   publish _site/ (see deploy/verdant-pages.yml.example)")
-    print("    Cloudflare Pages: upload _site/ directly, or build command "
-          "'python publish_static.py --out _site' with output dir _site")
+    print("    Deploy:   upload this folder to Cloudflare Pages, or commit "
+          "its contents to the branch GitHub Pages serves")
 
 
 if __name__ == "__main__":
